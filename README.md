@@ -117,111 +117,104 @@ transjakarta-fleet/
 
 ## How It Works
 1. Mock Publisher Sends Location via MQTT
-A mock publisher service sends GPS data every 2 seconds to the topic:
+   A mock publisher service sends GPS data every 2 seconds to the topic:
+   `/fleet/vehicle/{vehicle_id}/location`
 
-`/fleet/vehicle/{vehicle_id}/location`
-
-Example payload:
-```bash
-{
-  "vehicle_id": "B1234XYZ",
-  "latitude": -6.2088,
-  "longitude": 106.8456,
-  "timestamp": 1715003456
-}
-```
+    Example payload:
+    ```bash
+    {
+      "vehicle_id": "B1234XYZ",
+      "latitude": -6.2088,
+      "longitude": 106.8456,
+      "timestamp": 1715003456
+    }
+    ```
 2. Backend Subscribes and Validates
-The backend subscribes to:
+   The backend subscribes to:
+   `/fleet/vehicle/+/location`
 
-`/fleet/vehicle/+/location`
-
-It validates:
-
-vehicle_id must not be empty
-latitude must be between -90 and 90
-longitude must be between -180 and 180
-timestamp must be valid
+   It validates:
+    - vehicle_id must not be empty
+    - latitude must be between -90 and 90
+    - longitude must be between -180 and 180
+    - timestamp must be valid
 
 3. Data is Stored in PostgreSQL
-Validated location data is inserted into PostgreSQL table:
-vehicle_locations
+   Validated location data is inserted into PostgreSQL table vehicle_locations
 
 4. Backend Checks Geofence
-Each incoming location is checked against a geofence area.
+   Each incoming location is checked against a geofence area.
 
-Current geofence configuration:
-
-Center Latitude: -6.2088
-Center Longitude: 106.8456
-Radius: 50 meters
-
-If a vehicle enters the geofence, the backend publishes an event to RabbitMQ.
+   Current geofence configuration:
+   ```bash
+   Center Latitude: -6.2088
+   Center Longitude: 106.8456
+   Radius: 50 meters
+   ```
+   If a vehicle enters the geofence, the backend publishes an event to RabbitMQ.
 
 5. Geofence Event is Published to RabbitMQ
-Event is published to:
-
-Exchange: fleet.events
-Queue: geofence_alerts
-
-Example event payload:
-```bash
-{
-  "vehicle_id": "B1234XYZ",
-  "event": "geofence_entry",
-  "location": {
-    "latitude": -6.2088,
-    "longitude": 106.8456
-  },
-  "timestamp": 1715003456
-}
-```
+   Event is published to:
+   ```bash 
+    Exchange: fleet.events
+    Queue: geofence_alerts
+    
+    Example event payload:
+    {
+      "vehicle_id": "B1234XYZ",
+      "event": "geofence_entry",
+      "location": {
+        "latitude": -6.2088,
+        "longitude": 106.8456
+      },
+      "timestamp": 1715003456
+    }
+    ```
 
 6. Worker Consumes Geofence Event
 A worker inside the backend consumes messages from the queue and logs them.
 
 7. REST API Exposes Data
-The backend provides APIs to retrieve:
+   The backend provides APIs to retrieve:
+    - latest vehicle location
+    - location history by time range
 
-latest vehicle location
-location history by time range
-Prerequisites
-
+## Prerequisites
 Make sure you have the following installed:
-
-Docker
-Docker Compose
+- Docker
+- Docker Compose
 
 No need to install PostgreSQL, RabbitMQ, or MQTT broker manually because everything runs in Docker.
 
 ## How to Run
 1. Clone Repository
-```bash
-git clone <your-github-repository-url>
-cd transjakarta-fleet
-```
+    ```bash
+    git clone <your-github-repository-url>
+    cd transjakarta-fleet
+    ```
 
 2. Run All Services
-`docker compose up --build`
+   `docker compose up --build`
 
-This command will start:
-
-Backend API
-PostgreSQL
-RabbitMQ
-Mosquitto MQTT Broker
-Mock MQTT Publisher
+   This command will start:
+    - Backend API
+    - PostgreSQL
+    - RabbitMQ
+    - Mosquitto MQTT Broker
+    - Mock MQTT Publisher
 
 3. Wait Until Services Are Ready
-You should see logs similar to:
+   You should see logs similar to:
+    ```bash
+    PostgreSQL connected successfully
+    RabbitMQ exchange and queue declared successfully
+    RabbitMQ worker started
+    Connected to MQTT broker: tcp://mosquitto:1883
+    MQTT subscriber started
+    HTTP server running on :8080
+    ```
 
-PostgreSQL connected successfully
-RabbitMQ exchange and queue declared successfully
-RabbitMQ worker started
-Connected to MQTT broker: tcp://mosquitto:1883
-MQTT subscriber started
-HTTP server running on :8080
-
-You should also see publisher logs sending location data every 2 seconds.
+    You should also see publisher logs sending location data every 2 seconds.
 
 ## Available Services
 | Service                | URL / Port               |
@@ -232,72 +225,74 @@ You should also see publisher logs sending location data every 2 seconds.
 | MQTT Broker            | `localhost:1883`         |
 
 ## RabbitMQ Login
-Username: guest
-Password: guest
+- Username: guest
+- Password: guest
 
 ## API Endpoints
 1. Health Check
-```bash
-Request
-GET /health
-
-Example
-curl http://localhost:8081/health
-
-Response
-{
-  "status": "ok"
-}
-```
+    ```bash
+    Request
+    GET /health
+    
+    Example
+    curl http://localhost:8081/health
+    
+    Response
+    {
+      "status": "ok"
+    }
+    ```
 
 2. Get Latest Vehicle Location
-```bash
-Request
-GET /vehicles/:vehicle_id/location
-
-Example
-curl http://localhost:8081/vehicles/B1234XYZ/location
-
-Example Response
-{
-  "vehicle_id": "B1234XYZ",
-  "latitude": -6.2088,
-  "longitude": 106.8456,
-  "timestamp": 1715003456
-}
-```
+    ```bash
+    Request
+    GET /vehicles/:vehicle_id/location
+    
+    Example
+    curl http://localhost:8081/vehicles/B1234XYZ/location
+    
+    Example Response
+    {
+      "vehicle_id": "B1234XYZ",
+      "latitude": -6.2088,
+      "longitude": 106.8456,
+      "timestamp": 1715003456
+    }
+    ```
 
 3. Get Vehicle Location History
-```bash
-Request
-GET /vehicles/:vehicle_id/history?start=1715000000&end=1715009999
-
-Example
-curl "http://localhost:8081/vehicles/B1234XYZ/history?start=1715000000&end=1999999999"
-
-Example Response
-[
-  {
-    "vehicle_id": "B1234XYZ",
-    "latitude": -6.2088,
-    "longitude": 106.8456,
-    "timestamp": 1715003456
-  },
-  {
-    "vehicle_id": "B1234XYZ",
-    "latitude": -6.2087,
-    "longitude": 106.8455,
-    "timestamp": 1715003458
-  }
-]
-```
+    ```bash
+    Request
+    GET /vehicles/:vehicle_id/history?start=1715000000&end=1715009999
+    
+    Example
+    curl "http://localhost:8081/vehicles/B1234XYZ/history?start=1715000000&end=1999999999"
+    
+    Example Response
+    [
+      {
+        "vehicle_id": "B1234XYZ",
+        "latitude": -6.2088,
+        "longitude": 106.8456,
+        "timestamp": 1715003456
+      },
+      {
+        "vehicle_id": "B1234XYZ",
+        "latitude": -6.2087,
+        "longitude": 106.8455,
+        "timestamp": 1715003458
+      }
+    ]
+    ```
 
 ## MQTT Integration
 ```bash
 Topic
 /fleet/vehicle/{vehicle_id}/location
+
 Example Topic
 /fleet/vehicle/B1234XYZ/location
+
 Payload Format
 {
   "vehicle_id": "B1234XYZ",
@@ -308,17 +303,20 @@ Payload Format
 ```
 
 Publisher Behavior
-Sends mock GPS location every 2 seconds
-Uses slight random coordinate variation to simulate movement
+- Sends mock GPS location every 2 seconds
+- Uses slight random coordinate variation to simulate movement
 
 ## RabbitMQ Integration
 ```bash
 Exchange
 fleet.events
+
 Queue
 geofence_alerts
+
 Routing Key
 geofence.entry
+
 Event Payload
 {
   "vehicle_id": "B1234XYZ",
@@ -357,64 +355,61 @@ LIMIT 10;
 
 ## Example Testing Flow
 1. Start the system
-docker compose up --build
+   `docker compose up --build`
+
 2. Wait a few seconds for mock data to be published
+   The publisher sends data every 2 seconds.
 
-The publisher sends data every 2 seconds.
+4. Test latest location API
+   `curl http://localhost:8081/vehicles/B1234XYZ/location`
 
-3. Test latest location API
-curl http://localhost:8081/vehicles/B1234XYZ/location
-4. Test location history API
-curl "http://localhost:8081/vehicles/B1234XYZ/history?start=1715000000&end=1999999999"
-5. Check RabbitMQ geofence event
+5. Test location history API
+   `curl "http://localhost:8081/vehicles/B1234XYZ/history?start=1715000000&end=1999999999"`
+   
+6. Check RabbitMQ geofence event
+   Watch backend logs:
+    ```bash
+    geofence event published for vehicle=B1234XYZ
+    RabbitMQ worker received geofence event: ...
+    ```
 
-Watch backend logs:
-
-geofence event published for vehicle=B1234XYZ
-RabbitMQ worker received geofence event: ...
-
-Or open RabbitMQ UI:
-
-http://localhost:15672
+   Or open RabbitMQ UI: `http://localhost:15672`
 
 ## Notes / Design Decisions
 1. Dockerized Full Stack
-
-All services are containerized for easier setup and reproducibility.
+   All services are containerized for easier setup and reproducibility.
 
 2. Retry Logic on Startup
-The backend includes retry logic for:
+   The backend includes retry logic for:
+    - PostgreSQL
+    - RabbitMQ
+    - MQTT
 
-PostgreSQL
-RabbitMQ
-MQTT
-
-This is useful because in Docker Compose, a service may start before its dependency is fully ready.
+   This is useful because in Docker Compose, a service may start before its dependency is fully ready.
 
 3. Layered Project Structure
-The code is organized into:
+   The code is organized into:
+    - handler layer
+    - service layer
+    - repository layer
 
-handler layer
-service layer
-repository layer
-
-This separation makes the project easier to maintain and extend.
+   This separation makes the project easier to maintain and extend.
 
 4. Simple Geofence Detection
-Geofence detection uses the Haversine formula to calculate distance between coordinates.
+   Geofence detection uses the Haversine formula to calculate distance between coordinates.
 
 5. Mock Data Publisher
-A dedicated publisher service is included to simulate real-time vehicle movement and make the system easy to test.
+   A dedicated publisher service is included to simulate real-time vehicle movement and make the system easy to test.
 
-This repository includes:
-
-Source code
-Docker Compose setup
-Dockerfile
-SQL migration
-README
-Postman Collection
-Demo-ready architecture flow
+   This repository includes:
+  
+   Source code
+    - Docker Compose setup
+    - Dockerfile
+    - SQL migration
+    - README
+    - Postman Collection
+    - Demo-ready architecture flow
 
 ## Author
 
