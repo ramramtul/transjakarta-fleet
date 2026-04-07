@@ -1,0 +1,56 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: fleet_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fleetdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: fleet_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: fleet_mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  backend:
+    build: .
+    container_name: fleet_backend
+    depends_on:
+      - postgres
+      - rabbitmq
+      - mosquitto
+    environment:
+      POSTGRES_DSN: postgres://postgres:postgres@postgres:5432/fleetdb?sslmode=disable
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      MQTT_BROKER: tcp://mosquitto:1883
+    ports:
+      - "8081:8080"
+
+  publisher:
+    build: .
+    container_name: fleet_publisher
+    depends_on:
+      - mosquitto
+    environment:
+      MQTT_BROKER: tcp://mosquitto:1883
+    command: ["./publisher"]
+
+volumes:
+  postgres_data:
